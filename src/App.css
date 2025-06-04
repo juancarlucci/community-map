@@ -1,0 +1,47 @@
+.App {
+  position: relative;
+}
+
+#map {
+  width: 100%;
+  height: 100vh;
+  visibility: hidden;
+}
+
+#legend-wrapper {
+  position: absolute;
+  bottom: 10px;
+  right: 10px;
+  background: white;
+  padding: 10px;
+  visibility: hidden;
+}
+
+#category-title ul {
+  list-style: none;
+  padding: 0;
+}
+
+#category-title img {
+  vertical-align: middle;
+  margin-right: 5px;
+}
+
+#search-container {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  visibility: hidden;
+}
+
+.loader {
+  display: block;
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+}
+
+.loader.hidden {
+  display: none;
+}
