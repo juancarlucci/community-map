@@ -1,76 +1,124 @@
-import { useEffect, useRef } from 'react';
-import maplibregl from 'maplibre-gl';
-import 'maplibre-gl/dist/maplibre-gl.css';
-import './App.css';
+import { useEffect, useRef } from "react";
+import maplibregl from "maplibre-gl";
+import { MapboxOverlay } from "@deck.gl/mapbox";
+import { TileLayer } from "@deck.gl/geo-layers";
+import { BitmapLayer } from "@deck.gl/layers";
+import "maplibre-gl/dist/maplibre-gl.css";
+import "./App.css";
 
 function App() {
   const mapRef = useRef(null);
   const mapInstance = useRef(null);
   const loaderRef = useRef(null);
+  const deckOverlayRef = useRef(null);
 
   useEffect(() => {
-    // Prevent reinitialization
     if (mapInstance.current) return;
 
-    try {
-      mapInstance.current = new maplibregl.Map({
-        container: mapRef.current,
-        style: {
-          version: 8,
-          sources: {
-            osm: {
-              type: 'raster',
-              tiles: ['https://tile.openstreetmap.org/{z}/{x}/{y}.png'],
-              tileSize: 256,
-              attribution: 'Map tiles: <a href="https://openstreetmap.org">OpenStreetMap</a>',
-            },
+    mapInstance.current = new maplibregl.Map({
+      container: mapRef.current,
+      style: {
+        version: 8,
+        sources: {},
+        layers: [],
+      },
+      center: [-73.98994, 40.749844],
+      zoom: 12,
+      minZoom: 9,
+      maxZoom: 18,
+      attributionControl: true,
+    });
+
+    mapInstance.current.addControl(
+      new maplibregl.NavigationControl(),
+      "top-right"
+    );
+
+    mapRef.current.setAttribute("tabindex", "0");
+    mapRef.current.setAttribute("aria-label", "Community Projects Map");
+
+    const stadiaApiKey = import.meta.env.VITE_STADIA_API_KEY || "";
+    const watercolorTileUrl = stadiaApiKey
+      ? `https://tiles.stadiamaps.com/tiles/stamen_watercolor/{z}/{x}/{y}.jpg?api_key=${stadiaApiKey}`
+      : "https://tile.openstreetmap.org/{z}/{x}/{y}.png";
+    const labelsTileUrl = stadiaApiKey
+      ? `https://tiles.stadiamaps.com/tiles/stamen_toner_labels/{z}/{x}/{y}.png?api_key=${stadiaApiKey}`
+      : "https://tile.openstreetmap.org/{z}/{x}/{y}.png";
+
+    deckOverlayRef.current = new MapboxOverlay({
+      interleaved: true,
+      layers: [
+        new TileLayer({
+          id: "watercolor",
+          data: watercolorTileUrl,
+          minZoom: 0,
+          maxZoom: 18,
+          tileSize: 256,
+          renderSubLayers: (props) => {
+            const {
+              bbox: { west, south, east, north },
+            } = props.tile;
+            return new BitmapLayer(props, {
+              data: null,
+              image: props.data,
+              bounds: [west, south, east, north],
+            });
           },
-          layers: [
-            {
-              id: 'osm',
-              type: 'raster',
-              source: 'osm',
-              minzoom: 0,
-              maxzoom: 18,
-            },
-          ],
-        },
-        center: [-73.98994, 40.749844],
-        zoom: 12,
-        minZoom: 9,
-        maxZoom: 18,
-      });
+          onTileError: (error) => {
+            console.error("Tile loading error:", error);
+          },
+        }),
+        new TileLayer({
+          id: "toner-labels",
+          data: labelsTileUrl,
+          minZoom: 0,
+          maxZoom: 18,
+          tileSize: 256,
+          opacity: 0.5,
+          renderSubLayers: (props) => {
+            const {
+              bbox: { west, south, east, north },
+            } = props.tile;
+            return new BitmapLayer(props, {
+              data: null,
+              image: props.data,
+              bounds: [west, south, east, north],
+            });
+          },
+          onTileError: (error) => {
+            console.error("Tile labels loading error:", error);
+          },
+        }),
+      ],
+    });
 
-      // Add zoom controls
-      mapInstance.current.addControl(new maplibregl.NavigationControl(), 'top-right');
+    mapInstance.current.addControl(deckOverlayRef.current);
 
-      // Accessibility
-      mapRef.current.setAttribute('tabindex', '0');
-      mapRef.current.setAttribute('aria-label', 'Community Projects Map');
-
-      // Hide loader when map is loaded
-      mapInstance.current.on('load', () => {
-        if (loaderRef.current) {
-          loaderRef.current.classList.add('hidden');
-          mapRef.current.style.visibility = 'visible';
-        }
-        console.log('MapLibre loaded successfully.');
-      });
-
-      // Handle WebGL context loss
-      mapInstance.current.on('webglcontextlost', () => {
-        console.error('WebGL context lost. Attempting to restore...');
-      });
-      mapInstance.current.on('webglcontextrestored', () => {
-        console.log('WebGL context restored.');
-      });
-    } catch (error) {
-      console.error('MapLibre initialization failed:', error);
+    mapInstance.current.on("load", () => {
       if (loaderRef.current) {
-        loaderRef.current.textContent = 'Failed to load map.';
-        loaderRef.current.style.color = 'red';
+        loaderRef.current.classList.add("hidden");
+        mapRef.current.style.visibility = "visible";
+        document.getElementById("legend-wrapper").style.visibility = "visible";
+        document.getElementById("search-container").style.visibility =
+          "visible";
       }
-    }
+      console.log("MapLibre and Deck.GL loaded successfully.");
+    });
+
+    mapInstance.current.on("webglcontextlost", () => {
+      console.error("WebGL context lost. Attempting to restore...");
+    });
+    mapInstance.current.on("webglcontextrestored", () => {
+      console.log("WebGL context restored.");
+    });
+
+    mapInstance.current.on("error", (e) => {
+      console.error("MapLibre error:", e);
+      if (loaderRef.current) {
+        loaderRef.current.textContent = "Failed to load map.";
+        loaderRef.current.style.color = "red";
+      }
+    });
 
     return () => {
       if (mapInstance.current) {
@@ -82,7 +130,9 @@ function App() {
 
   return (
     <div className="App">
-      <div className="loader" ref={loaderRef} aria-live="polite">Loading map...</div>
+      <div className="loader" ref={loaderRef} aria-live="polite">
+        Loading map...
+      </div>
       <div
         id="map"
         ref={mapRef}
