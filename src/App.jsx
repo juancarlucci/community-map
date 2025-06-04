@@ -6,47 +6,72 @@ import './App.css';
 function App() {
   const mapRef = useRef(null);
   const mapInstance = useRef(null);
+  const loaderRef = useRef(null);
 
   useEffect(() => {
-    // Initialize MapLibre map
-    mapInstance.current = new maplibregl.Map({
-      container: mapRef.current,
-      style: {
-        version: 8,
-        sources: {
-          osm: {
-            type: 'raster',
-            tiles: ['https://tile.openstreetmap.org/{z}/{x}/{y}.png'], // Temporary OSM tiles
-            tileSize: 256,
-            attribution: 'Map tiles: <a href="https://openstreetmap.org">OpenStreetMap</a>',
+    // Prevent reinitialization
+    if (mapInstance.current) return;
+
+    try {
+      mapInstance.current = new maplibregl.Map({
+        container: mapRef.current,
+        style: {
+          version: 8,
+          sources: {
+            osm: {
+              type: 'raster',
+              tiles: ['https://tile.openstreetmap.org/{z}/{x}/{y}.png'],
+              tileSize: 256,
+              attribution: 'Map tiles: <a href="https://openstreetmap.org">OpenStreetMap</a>',
+            },
           },
+          layers: [
+            {
+              id: 'osm',
+              type: 'raster',
+              source: 'osm',
+              minzoom: 0,
+              maxzoom: 18,
+            },
+          ],
         },
-        layers: [
-          {
-            id: 'osm',
-            type: 'raster',
-            source: 'osm',
-            minzoom: 0,
-            maxzoom: 18,
-          },
-        ],
-      },
-      center: [-73.98994, 40.749844],
-      zoom: 12,
-      minZoom: 9,
-      maxZoom: 18,
-    });
+        center: [-73.98994, 40.749844],
+        zoom: 12,
+        minZoom: 9,
+        maxZoom: 18,
+      });
 
-    // Add zoom controls
-    mapInstance.current.addControl(new maplibregl.NavigationControl(), 'top-right');
+      // Add zoom controls
+      mapInstance.current.addControl(new maplibregl.NavigationControl(), 'top-right');
 
-    // Accessibility: Ensure map container is keyboard-focusable
-    mapRef.current.setAttribute('tabindex', '0');
-    mapRef.current.setAttribute('aria-label', 'Community Projects Map');
+      // Accessibility
+      mapRef.current.setAttribute('tabindex', '0');
+      mapRef.current.setAttribute('aria-label', 'Community Projects Map');
 
-    console.log('MapLibre initialized. Ready for Deck.GL layers.');
+      // Hide loader when map is loaded
+      mapInstance.current.on('load', () => {
+        if (loaderRef.current) {
+          loaderRef.current.classList.add('hidden');
+          mapRef.current.style.visibility = 'visible';
+        }
+        console.log('MapLibre loaded successfully.');
+      });
 
-    // Cleanup on unmount
+      // Handle WebGL context loss
+      mapInstance.current.on('webglcontextlost', () => {
+        console.error('WebGL context lost. Attempting to restore...');
+      });
+      mapInstance.current.on('webglcontextrestored', () => {
+        console.log('WebGL context restored.');
+      });
+    } catch (error) {
+      console.error('MapLibre initialization failed:', error);
+      if (loaderRef.current) {
+        loaderRef.current.textContent = 'Failed to load map.';
+        loaderRef.current.style.color = 'red';
+      }
+    }
+
     return () => {
       if (mapInstance.current) {
         mapInstance.current.remove();
@@ -57,7 +82,7 @@ function App() {
 
   return (
     <div className="App">
-      <div className="loader" aria-live="polite">Loading map...</div>
+      <div className="loader" ref={loaderRef} aria-live="polite">Loading map...</div>
       <div
         id="map"
         ref={mapRef}
